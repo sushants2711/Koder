@@ -159,7 +159,7 @@ export const getAllProjectsController = async (req, res) => {
             return res.status(400).json({ success: false, message: "User not Exist" });
         };
 
-        const allProject = await projectModel.find({ user: loggedInUser });
+        const allProject = await projectModel.find({ user: loggedInUser }).sort({ createdAt: -1 });
 
         if (!allProject || allProject.length === 0) {
             return res.status(400).json({ success: false, message: "No Project found" });

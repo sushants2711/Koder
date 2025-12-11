@@ -1,13 +1,16 @@
 import React, { useEffect, useState, useRef } from "react";
 import Editor from "@monaco-editor/react";
-import { Brain, Play, Save, Loader } from "lucide-react";
+import { Play, Save, Loader, Code2, MessageSquare, Send, Brain, Sun, Moon } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { handleError } from "../../message/error.message";
 import { handleSuccess } from "../../message/success.message";
 import { getProjectByIdApi, updateCodeApi } from "../../api/projectApi";
-import { aiCodeCheckerApi } from "../../api/aiApi";
+import { aiCodeCheckerApi, allAIChatApi, sendChatApi } from "../../api/aiApi";
 import Markdown from "react-markdown"
 import rehypeHighlight from "rehype-highlight";
+import ReactMarkdown from "react-markdown";
+import { ToastContainer } from "react-toastify";
+import { Helmet } from "react-helmet";
 
 
 const languageLogos = {
@@ -21,8 +24,8 @@ const languageLogos = {
 };
 
 export const EditorProject = () => {
-    const { id } = useParams();
 
+    const { id } = useParams();
     const [dataIs, setDataIs] = useState({});
     const [code, setCode] = useState("");
     const [input, setInput] = useState("");
@@ -35,6 +38,18 @@ export const EditorProject = () => {
     const resultRef = useRef(null);
     const outputRef = useRef(null);
 
+    // NEW STATES FOR CHAT PANEL
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [chat, setChat] = useState("");
+    const [chatLoader, setChatLoader] = useState(false);
+
+    const [displayChat, setDisplayChat] = useState([]);
+
+    const [chatError, setChatError] = useState(null);
+    const [chatDisplayError, setChatDisplayError] = useState(null);
+
+
+    const [darkMode, setDarkMode] = useState(true);
 
     const fetchDataFromId = async () => {
         try {
@@ -64,11 +79,11 @@ export const EditorProject = () => {
         fetchDataFromId();
     }, [id]);
 
+
     const saveCode = async () => {
         setSave(true);
         try {
             const result = await updateCodeApi(id, { code });
-            console.log(result);
             const { success, message, error } = result;
 
             if (success) {
@@ -85,6 +100,7 @@ export const EditorProject = () => {
         }
     };
 
+
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.ctrlKey && e.key === "s") {
@@ -95,7 +111,6 @@ export const EditorProject = () => {
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [code]);
-
 
 
     const getExtension = (lang) => {
@@ -111,6 +126,7 @@ export const EditorProject = () => {
             default: return ".txt";
         }
     };
+
 
     const runCode = () => {
         setLoadingAtRun(true);
@@ -135,7 +151,6 @@ export const EditorProject = () => {
                 const result = data.run;
                 setOutput(result?.output || "");
                 setIsError(result?.code !== 0);
-                // Scroll to output
                 setTimeout(() => outputRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
             })
             .catch(err => handleError(err.message))
@@ -147,168 +162,296 @@ export const EditorProject = () => {
         setAiResult("loading");
         try {
             const result = await aiCodeCheckerApi({ code });
-            console.log(result)
             setAiResult(result);
             setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         } catch (error) {
             handleError(error.message);
-            setAiResult(""); // clear AI result on error
-        }
+            setAiResult("");
+        };
     };
 
+
+    const fetchAllAIChat = async () => {
+        try {
+            const result = await allAIChatApi();
+            const { success, message, error, data } = result;
+
+            if (success) {
+                setDisplayChat(data);
+            } else if (!success) {
+                setDisplayChat([]);
+                setChatDisplayError(message);
+            } else {
+                setDisplayChat([]);
+                setChatDisplayError(error);
+            };
+        } catch (error) {
+            setChatDisplayError(error.message);
+        };
+    };
+
+
+    const handleSendToChat = async () => {
+        if (!chat || chat.length < 10) {
+            handleError("Chat length at least 10 Charcters long");
+            return;
+        }
+        setChatLoader(true);
+        try {
+            const result = await sendChatApi({ chat });
+            const { success, message, error } = result;
+
+            if (success) {
+                fetchAllAIChat();
+                setChatLoader(false);
+                setChat("");
+            } else if (!success) {
+                handleError(message);
+            } else {
+                handleError(error);
+            };
+        } catch (error) {
+            setChatError(error.message);
+        };
+    };
+
+
+    const handleChatBar = () => {
+        setIsChatOpen(true);
+        fetchAllAIChat();
+    };
+
+
+
     return (
-        <div className="w-full min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 md:p-6 overflow-x-hidden">
+        <>
+            <Helmet>
+                <title>Code Editor</title>
+            </Helmet>
 
-            {/* Top Bar */}
-            <div className="mb-6 max-w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3 flex-wrap">
-                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm md:text-base shadow-lg">
-                        {dataIs.name || "Loading..."}
-                    </div>
-                    <div className="bg-gradient-to-r from-green-500 to-green-600 p-2 rounded-lg shadow-lg">
-                        {dataIs.projectLanguage && (
-                            <img
-                                src={languageLogos[dataIs.projectLanguage]}
-                                alt={dataIs.projectLanguage}
-                                className="h-6 w-6 md:h-7 md:w-7 object-contain"
-                            />
-                        )}
-                    </div>
-                </div>
+            <div className="w-full min-h-screen bg-gradient-to-br from-blue-400 via-indigo-900 to-white p-4 md:p-6 overflow-x-hidden">
 
-                <div className="flex flex-wrap gap-2 sm:gap-3 w-full sm:w-auto">
-                    <button
-                        onClick={runCode}
-                        disabled={loadingAtRun}
-                        className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-white bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-500 disabled:to-gray-600 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 disabled:scale-100 flex-1 sm:flex-none text-sm md:text-base font-medium shadow-lg"
-                    >
-                        {loadingAtRun ? <Loader size={18} className="animate-spin" /> : <Play size={18} />}
-                        <span>{loadingAtRun ? "Running" : "Run"}</span>
-                    </button>
+                {/* Top Bar */}
+                <div className="mb-6 max-w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
 
-                    <button
-                        onClick={saveCode}
-                        disabled={save}
-                        className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-500 disabled:to-gray-600 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 disabled:scale-100 flex-1 sm:flex-none text-sm md:text-base font-medium shadow-lg"
-                    >
-                        {save ? <Loader size={18} className="animate-spin" /> : <Save size={18} />}
-                        <span>{save ? "Saving" : "Save"}</span>
-                    </button>
+                    {/* Left Side */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
 
-                    <button
-                        onClick={checkAiCodeReviewer}
-                        disabled={aiResult === "loading"}
-                        className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-white bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 disabled:from-gray-500 disabled:to-gray-600 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 disabled:scale-100 flex-1 sm:flex-none text-sm md:text-base font-medium shadow-lg"
-                    >
-                        {aiResult === "loading" ? <Loader size={18} className="animate-spin" /> : <Brain size={18} />}
-                        <span>{aiResult === "loading" ? "Analyzing" : "AI"}</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Main Content */}
-            {loading ? (
-                <div className="flex items-center justify-center h-96 text-center text-white text-lg font-medium">
-                    <Loader size={40} className="animate-spin mx-auto mb-4" /> Loading project...
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-6">
-
-                    {/* Editor */}
-                    <div className="lg:col-span-2">
-                        <div className="bg-gray-800 rounded-xl shadow-2xl overflow-hidden border border-gray-700 h-96 md:h-[500px] lg:h-[600px]">
-                            <div className="bg-gradient-to-r from-gray-700 to-gray-800 px-4 py-3 border-b border-gray-700 text-gray-300 font-semibold">
-                                Code Editor
+                        {/* Logo + App Name */}
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center shadow-sm">
+                                <Code2 className="w-6 h-6 text-white" />
                             </div>
-                            <Editor
-                                height="100%"
-                                theme="vs-dark"
-                                language={dataIs.projectLanguage?.toLowerCase()}
-                                value={code}
-                                onChange={(value) => setCode(value)}
-                                options={{
-                                    fontSize: 16,
-                                    minimap: { enabled: false },
-                                    automaticLayout: true,
-                                    scrollBeyondLastLine: false,
-                                    padding: { top: 12, bottom: 12 }
-                                }}
-                            />
+                            <span className="text-white font-semibold text-lg">CodeAI Studio</span>
+                        </div>
+
+                        {/* Project Name + Language (same line) */}
+                        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                            <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2 rounded-lg font-semibold truncate max-w-[180px]">
+                                {dataIs.name || "Loading..."}
+                            </div>
+                            {dataIs.projectLanguage && (
+                                <img
+                                    src={languageLogos[dataIs.projectLanguage]}
+                                    alt={dataIs.projectLanguage}
+                                    className="h-6 w-6 md:h-7 md:w-7 object-contain"
+                                />
+                            )}
                         </div>
                     </div>
 
-                    {/* Input */}
-                    <div className="lg:col-span-1">
-                        <div className="bg-gray-800 rounded-xl shadow-2xl overflow-hidden border border-gray-700 h-96 md:h-[500px] lg:h-[600px] flex flex-col">
-                            <div className="bg-gradient-to-r from-gray-700 to-gray-800 px-4 py-3 border-b border-gray-700 text-gray-300 font-semibold">Input</div>
-                            <textarea
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                placeholder="Enter input here..."
-                                className="flex-1 p-4 bg-gray-900 text-white font-mono text-sm border-0 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset placeholder-gray-500"
-                            />
-                        </div>
-                    </div>
+                    {/* Right Side: Buttons */}
+                    <div className="flex flex-wrap gap-2 sm:gap-3">
+                        <button
+                            onClick={runCode}
+                            disabled={loadingAtRun}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-white bg-green-600 hover:bg-green-700 shadow-lg"
+                        >
+                            {loadingAtRun ? <Loader size={18} className="animate-spin" /> : <Play size={18} />}
+                            {loadingAtRun ? "Running" : "Run"}
+                        </button>
 
+                        <button
+                            onClick={saveCode}
+                            disabled={save}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 shadow-lg"
+                        >
+                            {save ? <Loader size={18} className="animate-spin" /> : <Save size={18} />}
+                            {save ? "Saving" : "Save"}
+                        </button>
+
+                        <button
+                            onClick={checkAiCodeReviewer}
+                            disabled={aiResult === "loading"}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg text-white bg-yellow-600 hover:bg-yellow-700 shadow-lg"
+                        >
+                            {aiResult === "loading" ? <Loader size={18} className="animate-spin" /> : <Brain size={18} />}
+                            {aiResult === "loading" ? "Analyzing" : "AI"}
+                        </button>
+                    </div>
                 </div>
-            )}
 
-            {/* Output */}
-            {/* <div ref={outputRef} className="bg-gray-800 rounded-xl shadow-2xl overflow-hidden border border-gray-700 mb-6">
-                <div className="bg-gradient-to-r from-gray-700 to-gray-800 px-4 py-3 border-b border-gray-700 text-gray-300 font-semibold">Output</div>
-                <div className="h-40 md:h-48 p-4 bg-gray-900 overflow-auto">
-                    <pre className={`whitespace-pre-wrap font-mono text-sm md:text-base ${isError ? "text-red-400" : "text-green-400"}`}>
-                        {loadingAtRun ? (
-                            <span className="text-yellow-400 flex items-center gap-2">
-                                <Loader size={16} className="animate-spin" /> Running... Please wait.
-                            </span>
+
+                {/* Main Content */}
+                {loading ? (
+                    <div className="flex items-center justify-center h-96 text-white">Loading...</div>
+                ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-6">
+                        {/* Editor */}
+                        <div className="lg:col-span-2">
+                            <div className="bg-gray-800 rounded-xl shadow-xl h-[600px] overflow-hidden border border-gray-700">
+                                <div className="bg-gray-700 px-4 py-3 text-gray-300 border-b">Code Editor</div>
+                                <Editor
+                                    height="100%"
+                                    theme="vs-dark"
+                                    language={dataIs.projectLanguage?.toLowerCase()}
+                                    value={code}
+                                    onChange={(value) => setCode(value)}
+                                    options={{
+                                        fontSize: 16,
+                                        minimap: { enabled: false },
+                                        scrollBeyondLastLine: false
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Input */}
+                        <div>
+                            <div className="bg-gray-800 rounded-xl shadow-xl h-[600px] flex flex-col border border-gray-700">
+                                <div className="bg-gray-700 px-4 py-3 text-gray-300 border-b">Input</div>
+                                <textarea
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    placeholder="Enter input..."
+                                    className="flex-1 p-4 bg-gray-900 text-white resize-none focus:outline-none"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Output */}
+                {output && (
+                    <div ref={outputRef} className="mt-6 p-4 rounded-xl bg-black text-green-400 shadow-xl">
+                        <h3 className="font-bold mb-2">Output</h3>
+                        <pre className="whitespace-pre-wrap">{output}</pre>
+                    </div>
+                )}
+
+
+                {/* AI Result */}
+                {aiResult && aiResult !== "loading" && (
+                    <div
+                        ref={resultRef}
+                        className="mt-8 p-6 rounded-xl bg-gray-900/80 border border-yellow-600/40 shadow-[0_0_15px_rgba(255,200,0,0.3)] animate-fadeIn"
+                    >
+                        {/* Header */}
+                        <div className="flex items-center gap-2 mb-4">
+                            <Brain size={22} className="text-yellow-400" />
+                            <h3 className="font-bold text-xl text-yellow-300">AI Code Review</h3>
+                        </div>
+
+                        {/* Markdown Content */}
+                        <div className="prose max-h-[700px] overflow-y-auto p-6 bg-white rounded-lg border border-yellow-700/30 shadow-inner space-y-4">
+                            <Markdown rehypePlugins={[rehypeHighlight]}>
+                                {aiResult}
+                            </Markdown>
+                        </div>
+                    </div>
+                )}
+
+
+
+                {/* FLOATING CHAT BUTTON */}
+                <button
+                    onClick={handleChatBar}
+                    className="fixed bottom-6 right-6 z-50 bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full shadow-2xl"
+                >
+                    <MessageSquare size={26} />
+                </button>
+
+
+                {/* RIGHT-SIDE CHAT PANEL */}
+                <div
+                    className={`fixed top-0 right-0 h-full shadow-2xl border-l border-gray-700 transition-all duration-300 z-50
+    ${isChatOpen ? "w-full md:w-[50%]" : "w-0"} overflow-hidden`}
+                >
+                    <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gray-900">
+                        <button
+                            onClick={() => setDarkMode(!darkMode)}
+                            className="p-2 rounded-full bg-gray-800 text-white shadow-lg hover:bg-gray-700 transition"
+                        >
+                            {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+                        </button>
+
+                        <button
+                            onClick={() => setIsChatOpen(false)}
+                            className="p-2 rounded-full bg-gray-800 text-white shadow-lg hover:bg-gray-700 transition"
+                        >
+                            X
+                        </button>
+                    </div>
+
+                    <div
+                        className={`overflow-y-auto text-sm space-y-4 p-4
+      ${darkMode ? "bg-black text-white" : "bg-white text-black"}`}
+                        style={{ height: "calc(100% - 112px)", paddingBottom: "4rem" }}
+                    >
+                        {displayChat.length === 0 ? (
+                            <p className={darkMode ? "text-gray-300" : "text-gray-600"}>
+                                Ask about your code, logic, bugs, or anything…
+                            </p>
                         ) : (
-                            output || "Run the code to see output..."
+                            displayChat.map((curr) => (
+                                <div
+                                    key={curr._id}
+                                    className={`p-3 rounded-lg border 
+            ${darkMode ? "bg-gray-900 border-gray-700" : "bg-white border-gray-300"}`}
+                                >
+                                    <p>{new Date(curr.createdAt).toLocaleString()}</p> <br />
+                                    <p className="text-blue-700 font-semibold mb-1">You:</p>
+                                    <p
+                                        className={`font-semibold md:text-lg whitespace-pre-line ${darkMode ? "text-yellow-300" : "text-blue-700"
+                                            }`}
+                                    >
+                                        {curr.chat}
+                                    </p>
+
+                                    <p className="text-red-500 font-semibold mt-3 mb-1 md:text-lg">AI:</p>
+                                    <div className={`md:text-[16px] whitespace-pre-wrap`}>
+                                        <ReactMarkdown>{curr.response}</ReactMarkdown>
+                                    </div>
+
+                                </div>
+                            ))
                         )}
-                    </pre>
-                </div>
-            </div> */}
+                    </div>
 
-            {/* Output */}
-            {output ? (
-                <div ref={outputRef} className="mt-6 p-4 rounded-xl bg-gray-900 text-white shadow-lg overflow-auto max-h-48">
-                    <h3 className="font-bold text-green-400 mb-2">Output</h3>
-                    <div style={{ whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
-                        {output}
+                    <div className="absolute bottom-0 w-full p-3 bg-gray-800 border-t border-gray-700">
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                name="chat"
+                                value={chat}
+                                onChange={(e) => setChat(e.target.value)}
+                                placeholder="Type your message…"
+                                className="w-full px-3 py-2 rounded-lg bg-gray-700 text-white focus:outline-none"
+                            />
+                            <button
+                                className="bg-blue-600 hover:bg-blue-700 p-3 rounded-lg flex items-center justify-center"
+                                onClick={handleSendToChat}
+                                disabled={chatLoader}
+                            >
+                                {chatLoader ? <Loader size={18} className="animate-spin text-white" /> : <Send size={20} />}
+                            </button>
+
+                        </div>
                     </div>
                 </div>
-            ) : (
-                <div>{isError}</div>
-            )
-            }
 
-
-
-            {/* AI Result */}
-            {/* {aiResult && aiResult !== "loading" && (
-                <div ref={resultRef} id="ai-result" className="bg-gradient-to-br from-yellow-900 to-orange-900 rounded-xl shadow-2xl overflow-hidden border border-yellow-700 p-6 animate-fadeIn">
-                    <h3 className="font-bold text-yellow-300 mb-3 text-base md:text-lg flex items-center gap-2"><Brain size={20} /> AI Code Review</h3>
-                    <pre className="whitespace-pre-wrap text-yellow-50 font-mono text-xs md:text-sm leading-relaxed">{aiResult}</pre>
-                </div>
-            )} */}
-
-            {aiResult && aiResult !== "loading" && ( // bg-yellow-900
-                <div ref={resultRef} className="mt-6 p-4 rounded-xl bg-black text-yellow-50 shadow-lg overflow-auto md:text-lg">
-                    <h3 className="font-bold mb-2 flex items-center gap-2">
-                        <Brain size={20} /> AI Review Result
-                    </h3>
-                    <div style={{ whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
-                        <Markdown rehypePlugins={[rehypeHighlight]} >
-                            {aiResult}
-                        </Markdown>
-                    </div>
-                </div>
-            )
-            }
-
-
-
-
-        </div >
+                <ToastContainer />
+            </div>
+        </>
     );
 };

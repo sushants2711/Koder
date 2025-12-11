@@ -1,10 +1,9 @@
-import { Routing } from "./routes/Routing"
-
+import { Routing2 } from "./routes/Routing2"
 
 function App() {
   return (
     <>
-      <Routing />
+      <Routing2 />
     </>
   )
 }

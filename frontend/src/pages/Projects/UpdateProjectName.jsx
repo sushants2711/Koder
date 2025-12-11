@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { getProjectByIdApi, updateProjectNameApi } from "../../api/projectApi";
 import { handleError } from "../../message/error.message";
 import { handleSuccess } from "../../message/success.message";
+import { Helmet } from "react-helmet";
 
 export const UpdateProjectName = ({ id, close, refresh }) => {
     const [name, setName] = useState("");
@@ -62,50 +63,58 @@ export const UpdateProjectName = ({ id, close, refresh }) => {
     const isValid = name.length >= 3 && regex.test(name);
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="max-w-md w-full bg-white p-6 rounded-lg shadow-lg">
-                <h2 className="text-2xl font-semibold text-center mb-5 text-gray-800">
-                    Update Project Name
-                </h2>
+        <>
+            <Helmet>
+                <title>
+                    Update-Project
+                </title>
+            </Helmet>
 
-                <form onSubmit={handleSubmit}>
-                    <label className="block mb-2 text-gray-700 font-medium">
-                        New Project Name
-                    </label>
+            <div className="fixed inset-0 bg-white bg-opacity-50 flex justify-center items-center z-50">
+                <div className="max-w-md w-full bg-white p-6 rounded-lg shadow-lg">
+                    <h2 className="text-2xl font-semibold text-center mb-12 mt-8 text-gray-800">
+                        Update Project Name
+                    </h2>
 
-                    <input
-                        type="text"
-                        value={name}
-                        onChange={handleChange}
-                        placeholder="Enter new project name"
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
+                    <form onSubmit={handleSubmit}>
+                        <label className="block mb-2 text-gray-700 font-medium">
+                            New Project Name
+                        </label>
 
-                    {error && (
-                        <p className="text-red-600 text-sm mt-2">{error}</p>
-                    )}
+                        <input
+                            type="text"
+                            value={name}
+                            onChange={handleChange}
+                            placeholder="Enter new project name"
+                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
 
-                    <div className="flex justify-between gap-3 mt-5">
-                        <button
-                            type="button"
-                            onClick={close}
-                            className="w-1/2 py-2 rounded-lg text-white bg-gray-500 hover:bg-gray-600"
-                        >
-                            Cancel
-                        </button>
+                        {error && (
+                            <p className="text-red-600 text-sm mt-2">{error}</p>
+                        )}
 
-                        <button
-                            type="submit"
-                            disabled={!isValid}
-                            className={`w-1/2 py-2 rounded-lg text-white transition 
+                        <div className="flex justify-between gap-3 mt-5">
+                            <button
+                                type="button"
+                                onClick={close}
+                                className="w-1/2 py-2 rounded-lg text-white bg-gray-500 hover:bg-gray-600"
+                            >
+                                Cancel
+                            </button>
+
+                            <button
+                                type="submit"
+                                disabled={!isValid}
+                                className={`w-1/2 py-2 rounded-lg text-white transition 
                                 ${isValid ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-400 cursor-not-allowed"}
                             `}
-                        >
-                            Update
-                        </button>
-                    </div>
-                </form>
+                            >
+                                Update
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
-        </div>
+        </>
     );
 };
